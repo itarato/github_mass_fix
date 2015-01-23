@@ -51,7 +51,8 @@ Create your ```config.json``` (using the template from ```sample.config.json```)
   "repoPattern": "REPOSITORY_PATTERN_IN_CASE_YOU_NEED_TO_FILTER",
   "replaceFrom": "REPLACE_WHAT",
   "replaceTo": "REPLACE_TO",
-  "branch": "BRANCH_NAME_OF_CLONED_REPOS"
+  "branch": "BRANCH_NAME_OF_CLONED_REPOS",
+  "commitMessage": "COMMIT_MESSAGE"
 }
 ```
 
@@ -69,6 +70,7 @@ An example:
   "repoPattern": "github.com:myaccountname",
   "replaceFrom": "function\\ wrong_name",
   "replaceTo": "function\\ good_name",
-  "branch": "master"
+  "branch": "master",
+  "commitMessage": "Fixes issue #foobar - xyz bug"
 }
 ```

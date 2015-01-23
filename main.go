@@ -36,6 +36,7 @@ type Config struct {
 	ReplaceFrom   string `json:"replaceFrom"`
 	ReplaceTo     string `json:"replaceTo"`
 	Branch        string `json:"branch"`
+	CommitMessage string `json:"commitMessage"`
 }
 
 // Token provider
@@ -182,7 +183,7 @@ func handleRepo(config *Config, sshURL string) {
 
 	if flagCommit {
 		log.Println("Committing changes")
-		_, err_commit := execCmdWithOutput(config.GitCMD, "commit", "-a", "-m", "Fixed by script.")
+		_, err_commit := execCmdWithOutput(config.GitCMD, "commit", "-a", "-m", config.CommitMessage)
 		if err_commit != nil {
 			log.Panic(err_commit)
 			return
