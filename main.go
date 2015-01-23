@@ -9,14 +9,18 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 )
 
 var (
-	repoPageLimit       int    = 30            // Limit of a simgle REST get
-	tempCloneNamePrefix string = "temp_clone_" // Dir prefix for cloned repos
-	flagCommit          bool   = false         // Flag - commit or not the result
+	repoPageLimit       int        = 30            // Limit of a simgle REST get
+	tempCloneNamePrefix string     = "temp_clone_" // Dir prefix for cloned repos
+	flagCommit          bool       = false         // Flag - commit or not the result
+	repoCounter         int        = 0             // Incremental counter to differenciate repos
+	mutexInRepoOp       sync.Mutex                 // Mutex to keep in-git-dir operations safe
 )
 
 // Configuration container loaded from JSON
@@ -125,7 +129,8 @@ func getTempRepoName(sshURL string) string {
 	if rx_err != nil {
 		log.Fatal(rx_err)
 	}
-	return tempCloneNamePrefix + rx.FindStringSubmatch(sshURL)[1]
+	repoCounter++
+	return tempCloneNamePrefix + rx.FindStringSubmatch(sshURL)[1] + "_" + strconv.Itoa(repoCounter)
 }
 
 // Clones a repository and attempt to change files
@@ -143,7 +148,7 @@ func handleRepo(config *Config, sshURL string) {
 
 	_, err_clone := exec.Command(config.GitCMD, "clone", "--branch", config.Branch, sshURL, tempCloneName).Output()
 	if err_clone != nil {
-		log.Println("Repo cannot be cloned")
+		log.Println("Repo cannot be cloned", sshURL, err_clone)
 		return
 	}
 
@@ -164,6 +169,7 @@ func handleRepo(config *Config, sshURL string) {
 		handleFile(config, fileName)
 	}
 
+	mutexInRepoOp.Lock()
 	syscall.Chdir("./" + tempCloneName)
 	diff, err_diff := execCmdWithOutput(config.GitCMD, "diff")
 	if err_diff != nil {
@@ -184,6 +190,7 @@ func handleRepo(config *Config, sshURL string) {
 			return
 		}
 	}
+	mutexInRepoOp.Unlock()
 }
 
 // Change the content of the file by applying the pattern
@@ -212,19 +219,26 @@ func execute(config *Config) {
 	repos := fetchRepos(config, client)
 	log.Println("Found", len(repos), "repositories")
 
+	var wg sync.WaitGroup
 	for _, repo := range repos {
-		isMatch, err_match := regexp.MatchString(config.RepoPattern, *repo.SSHURL)
-		if err_match != nil {
-			log.Panic(err_match)
-			continue
-		}
+		wg.Add(1)
+		currentRepo := repo
+		go func() {
+			defer wg.Done()
+			isMatch, err_match := regexp.MatchString(config.RepoPattern, *currentRepo.SSHURL)
+			if err_match != nil {
+				log.Panic(err_match)
+				return
+			}
 
-		if isMatch {
-			handleRepo(config, *repo.SSHURL)
-		} else {
-			log.Println("Ignored:", *repo.SSHURL)
-		}
+			if isMatch {
+				handleRepo(config, *currentRepo.SSHURL)
+			} else {
+				log.Println("Ignored:", *currentRepo.SSHURL)
+			}
+		}()
 	}
+	wg.Wait()
 }
 
 func main() {
