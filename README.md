@@ -27,8 +27,15 @@ Run and commit:
 $ go run main.go commit
 ```
 
-Configuration
+Setup
 -------------
+
+Get dependencies:
+
+```bash
+$ go get github.com/google/go-github/github
+$ go get golang.org/x/oauth2
+```
 
 Create your ```config.json``` (using the template from ```sample.config.json```):
 
