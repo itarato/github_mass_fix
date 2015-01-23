@@ -83,7 +83,7 @@ func fetchRepos(config *Config, client *github.Client) []github.Repository {
 	log.Println("Inspected team found, ID:", team_id)
 
 	log.Println("Fetch repositories")
-	for page := 0; ; page++ {
+	for page := 1; ; page++ {
 		opt := &github.ListOptions{PerPage: repoPageLimit, Page: page}
 		repos_paged, _, err := client.Organizations.ListTeamRepos(team_id, opt)
 		if err != nil {
