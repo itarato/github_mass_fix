@@ -30,6 +30,8 @@ $ go run main.go commit
 Configuration
 -------------
 
+Create your ```config.json``` (using the template from ```sample.config.json```):
+
 ```json
 {
   "personalToken": "YOUR_GITHUB_TOKEN",
