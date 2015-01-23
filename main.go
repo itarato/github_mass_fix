@@ -1,17 +1,3 @@
-// The script requires your GitHub token.
-// It fetches the teams for a given organisation.
-// Then goes through one team's repos.
-
-// Call: go run main.go - dry run, no commits
-// Call: go run main.go commit
-
-// Config file format:
-// {
-//   "personalToken": "TOKEN_FROM_GITHUB",
-//   "orgName": "SELECTED_ORG_NAME",
-//   "teamName": "SELECTED_TEAM_NAME"
-// }
-
 package main
 
 import (
@@ -43,6 +29,9 @@ type Config struct {
 	GrepCMD       string `json:"grepCmd"`
 	SedCMD        string `json:"sedCmd"`
 	RepoPattern   string `json:"repoPattern"`
+	ReplaceFrom   string `json:"replaceFrom"`
+	ReplaceTo     string `json:"replaceTo"`
+	Branch        string `json:"branch"`
 }
 
 type GithubTokenSource struct {
@@ -134,13 +123,13 @@ func handleRepo(config *Config, sshURL string) {
 	syscall.Chdir(config.TempDir)
 	os.RemoveAll("./" + tempCloneName)
 
-	_, err_clone := exec.Command(config.GitCMD, "clone", "--branch", "7.x-1.x-stable", sshURL, tempCloneName).Output()
+	_, err_clone := exec.Command(config.GitCMD, "clone", "--branch", config.Branch, sshURL, tempCloneName).Output()
 	if err_clone != nil {
 		log.Println("Repo cannot be cloned")
 		return
 	}
 
-	out_grep, _ := execCmdWithOutput(config.GrepCMD, "-rl", "url.full.pdf", tempCloneName)
+	out_grep, _ := execCmdWithOutput(config.GrepCMD, "-rl", config.ReplaceFrom, tempCloneName)
 	out_grep_trimmed := strings.Trim(out_grep, "\n\r\t ")
 	if out_grep_trimmed == "" {
 		log.Println("No match")
@@ -165,7 +154,7 @@ func handleRepo(config *Config, sshURL string) {
 
 func handleFile(config *Config, fileName string) {
 	log.Println("Edit", fileName)
-	new_content, _ := execCmdWithOutput(config.SedCMD, "-e", "s/url\\.full\\.pdf/url_full_pdf/g", fileName)
+	new_content, _ := execCmdWithOutput(config.SedCMD, "-e", "s/"+config.ReplaceFrom+"/"+config.ReplaceTo+"/g", fileName)
 	file, err := os.OpenFile(fileName, os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal("File cannot opened", fileName)
@@ -203,6 +192,4 @@ func main() {
 	}
 
 	execute(config)
-
-	log.Println("END")
 }
