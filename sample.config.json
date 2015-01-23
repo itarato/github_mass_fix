@@ -1,0 +1,13 @@
+{
+  "personalToken": "YOUR_GITHUB_TOKEN",
+  "orgName": "GITHUB_ORGANIZATION_NAME",
+  "teamName": "TEAM_NAME_FROM_ORGANIZATION",
+  "tempDir": "TEMP_DIR_TO_PUT_CLONES",
+  "gitCmd": "GIT_EXECUTABLE",
+  "grepCmd": "GREP_EXECUTABLE",
+  "sedCMD": "SED_EXECUTABLE",
+  "repoPattern": "REPOSITORY_PATTERN_IN_CASE_YOU_NEED_TO_FILTER",
+  "replaceFrom": "REPLACE_WHAT",
+  "replaceTo": "REPLACE_TO",
+  "branch": "BRANCH_NAME_OF_CLONED_REPOS"
+}
