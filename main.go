@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	repoPageLimit int    = 30           // Limit of a simgle REST get
-	tempCloneName string = "temp_clone" // Dir prefix for cloned repos
-	flagCommit    bool   = false        // Flag - commit or not the result
+	repoPageLimit       int    = 30            // Limit of a simgle REST get
+	tempCloneNamePrefix string = "temp_clone_" // Dir prefix for cloned repos
+	flagCommit          bool   = false         // Flag - commit or not the result
 )
 
 // Configuration container loaded from JSON
@@ -120,13 +120,26 @@ func execCmdWithOutput(arg0 string, args ...string) (string, error) {
 	return string(output), nil
 }
 
+func getTempRepoName(sshURL string) string {
+	rx, rx_err := regexp.Compile("^.*\\/([^\\/]{1,}).git$")
+	if rx_err != nil {
+		log.Fatal(rx_err)
+	}
+	return tempCloneNamePrefix + rx.FindStringSubmatch(sshURL)[1]
+}
+
 // Clones a repository and attempt to change files
 func handleRepo(config *Config, sshURL string) {
 	log.Println("Repo clone", sshURL)
 
+	tempCloneName := getTempRepoName(sshURL)
+
 	syscall.Chdir(config.TempDir)
-	defer syscall.Chdir(config.TempDir)
 	os.RemoveAll("./" + tempCloneName)
+	defer func() {
+		syscall.Chdir(config.TempDir)
+		os.RemoveAll("./" + tempCloneName)
+	}()
 
 	_, err_clone := exec.Command(config.GitCMD, "clone", "--branch", config.Branch, sshURL, tempCloneName).Output()
 	if err_clone != nil {
