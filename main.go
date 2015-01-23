@@ -152,7 +152,7 @@ func handleRepo(config *Config, sshURL string) {
 		return
 	}
 
-	out_grep, err_grep := execCmdWithOutput(config.GrepCMD, "-rl", config.ReplaceFrom, tempCloneName)
+	out_grep, err_grep := execCmdWithOutput(config.GrepCMD, "-rl", "--exclude-dir", ".git", config.ReplaceFrom, tempCloneName)
 	if err_grep != nil {
 		log.Panic(err_grep)
 		return
@@ -169,6 +169,7 @@ func handleRepo(config *Config, sshURL string) {
 		handleFile(config, fileName)
 	}
 
+	// Make git operations safe - they have to be called from the directory
 	mutexInRepoOp.Lock()
 	syscall.Chdir("./" + tempCloneName)
 	diff, err_diff := execCmdWithOutput(config.GitCMD, "diff")
@@ -179,17 +180,23 @@ func handleRepo(config *Config, sshURL string) {
 	log.Println(diff)
 
 	if flagCommit {
-		_, err_commit := execCmdWithOutput(config.GitCMD, "commit", "-a", "-m", "\"Fixed by script.\"", ".")
+		log.Println("Committing changes")
+		_, err_commit := execCmdWithOutput(config.GitCMD, "commit", "-a", "-m", "Fixed by script.")
 		if err_commit != nil {
 			log.Panic(err_commit)
 			return
 		}
+
+		log.Println("Push to remote")
 		_, err_push := execCmdWithOutput(config.GitCMD, "push", "origin", config.Branch)
 		if err_push != nil {
 			log.Panic(err_push)
 			return
 		}
+		log.Println("Commit and push succeed")
 	}
+
+	syscall.Chdir(config.TempDir)
 	mutexInRepoOp.Unlock()
 }
 
@@ -207,6 +214,7 @@ func handleFile(config *Config, fileName string) {
 		log.Fatal("File cannot opened", fileName)
 	}
 
+	file.Truncate(0)
 	file.WriteString(new_content)
 	file.Close()
 }
