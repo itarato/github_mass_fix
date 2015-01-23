@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 	"io/ioutil"
@@ -15,11 +14,12 @@ import (
 )
 
 var (
-	repoPageLimit int    = 30
-	tempCloneName string = "temp_clone"
-	flagCommit    bool   = false
+	repoPageLimit int    = 30           // Limit of a simgle REST get
+	tempCloneName string = "temp_clone" // Dir prefix for cloned repos
+	flagCommit    bool   = false        // Flag - commit or not the result
 )
 
+// Configuration container loaded from JSON
 type Config struct {
 	PersonalToken string `json:"personalToken"`
 	OrgName       string `json:"orgName"`
@@ -34,30 +34,32 @@ type Config struct {
 	Branch        string `json:"branch"`
 }
 
+// Token provider
 type GithubTokenSource struct {
 	PersonalToken string
 }
 
+// Return the wrapped token for GitHub authentication client
 func (gts *GithubTokenSource) Token() (*oauth2.Token, error) {
 	return &oauth2.Token{AccessToken: gts.PersonalToken}, nil
 }
 
+// Load configuration
 func getConfig() (*Config, error) {
 	var config Config
 	b, err := ioutil.ReadFile("config.json")
 	if err != nil {
-		log.Println(err)
-		return nil, errors.New("No config file")
+		return nil, err
 	}
 
 	if err = json.Unmarshal(b, &config); err != nil {
-		log.Println(err)
-		return nil, errors.New("Invalid config format")
+		return nil, err
 	}
 
 	return &config, nil
 }
 
+// Load repositories using the configuration
 func fetchRepos(config *Config, client *github.Client) []github.Repository {
 	log.Println("Fetch organization teams")
 	repos := make([]github.Repository, 0, 1000)
@@ -98,6 +100,7 @@ func fetchRepos(config *Config, client *github.Client) []github.Repository {
 	return repos
 }
 
+// Execute a shell command and returns the output
 func execCmdWithOutput(arg0 string, args ...string) (string, error) {
 	cmd := exec.Command(arg0, args...)
 	stdout, err := cmd.StdoutPipe()
@@ -117,10 +120,12 @@ func execCmdWithOutput(arg0 string, args ...string) (string, error) {
 	return string(output), nil
 }
 
+// Clones a repository and attempt to change files
 func handleRepo(config *Config, sshURL string) {
 	log.Println("Repo clone", sshURL)
 
 	syscall.Chdir(config.TempDir)
+	defer syscall.Chdir(config.TempDir)
 	os.RemoveAll("./" + tempCloneName)
 
 	_, err_clone := exec.Command(config.GitCMD, "clone", "--branch", config.Branch, sshURL, tempCloneName).Output()
@@ -129,7 +134,12 @@ func handleRepo(config *Config, sshURL string) {
 		return
 	}
 
-	out_grep, _ := execCmdWithOutput(config.GrepCMD, "-rl", config.ReplaceFrom, tempCloneName)
+	out_grep, err_grep := execCmdWithOutput(config.GrepCMD, "-rl", config.ReplaceFrom, tempCloneName)
+	if err_grep != nil {
+		log.Panic(err_grep)
+		return
+	}
+
 	out_grep_trimmed := strings.Trim(out_grep, "\n\r\t ")
 	if out_grep_trimmed == "" {
 		log.Println("No match")
@@ -142,19 +152,36 @@ func handleRepo(config *Config, sshURL string) {
 	}
 
 	syscall.Chdir("./" + tempCloneName)
-	diff, _ := execCmdWithOutput(config.GitCMD, "diff")
+	diff, err_diff := execCmdWithOutput(config.GitCMD, "diff")
+	if err_diff != nil {
+		log.Panic(err_diff)
+		return
+	}
+	log.Println(diff)
 
 	if flagCommit {
-		execCmdWithOutput(config.GitCMD, "commit", "-a", "-m", "\"Fixed by script.\"", ".")
+		_, err_commit := execCmdWithOutput(config.GitCMD, "commit", "-a", "-m", "\"Fixed by script.\"", ".")
+		if err_commit != nil {
+			log.Panic(err_commit)
+			return
+		}
+		_, err_push := execCmdWithOutput(config.GitCMD, "push", "origin", config.Branch)
+		if err_push != nil {
+			log.Panic(err_push)
+			return
+		}
 	}
-
-	syscall.Chdir(config.TempDir)
-	log.Println(diff)
 }
 
+// Change the content of the file by applying the pattern
 func handleFile(config *Config, fileName string) {
 	log.Println("Edit", fileName)
-	new_content, _ := execCmdWithOutput(config.SedCMD, "-e", "s/"+config.ReplaceFrom+"/"+config.ReplaceTo+"/g", fileName)
+	new_content, err_sed := execCmdWithOutput(config.SedCMD, "-e", "s/"+config.ReplaceFrom+"/"+config.ReplaceTo+"/g", fileName)
+	if err_sed != nil {
+		log.Panic(err_sed)
+		return
+	}
+
 	file, err := os.OpenFile(fileName, os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal("File cannot opened", fileName)
@@ -164,6 +191,7 @@ func handleFile(config *Config, fileName string) {
 	file.Close()
 }
 
+// Application script
 func execute(config *Config) {
 	c := oauth2.NewClient(oauth2.NoContext, &GithubTokenSource{config.PersonalToken})
 	client := github.NewClient(c)
@@ -172,7 +200,12 @@ func execute(config *Config) {
 	log.Println("Found", len(repos), "repositories")
 
 	for _, repo := range repos {
-		isMatch, _ := regexp.MatchString(config.RepoPattern, *repo.SSHURL)
+		isMatch, err_match := regexp.MatchString(config.RepoPattern, *repo.SSHURL)
+		if err_match != nil {
+			log.Panic(err_match)
+			continue
+		}
+
 		if isMatch {
 			handleRepo(config, *repo.SSHURL)
 		} else {
