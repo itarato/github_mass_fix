@@ -124,6 +124,7 @@ func execCmdWithOutput(arg0 string, args ...string) (string, error) {
 	return string(output), nil
 }
 
+// Create a temp name for the cloned repo folder
 func getTempRepoName(sshURL string) string {
 	rx, rx_err := regexp.Compile("^.*\\/([^\\/]{1,}).git$")
 	if rx_err != nil {
